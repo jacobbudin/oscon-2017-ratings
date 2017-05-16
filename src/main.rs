@@ -8,7 +8,9 @@ use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 use regex::Regex;
+use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 use scraper::{Html, Selector};
 
 struct Event {
@@ -35,11 +37,24 @@ impl Event {
         let doc = Html::parse_document(&body);
 
         let title_selector = Selector::parse("h1").unwrap();
-        self.name = doc.select(&title_selector).next().unwrap().inner_html();
+        let title_element = doc.select(&title_selector).next();
+        let title_html = match title_element {
+            Some(element) => element.inner_html(),
+            None => return,
+        };
+        self.name = title_html;
 
         let ratings_selector = Selector::parse(".en_grade_average").unwrap();
-        let ratings = doc.select(&ratings_selector).next().unwrap().inner_html();
-        let caps = RATING_RE.captures(ratings.as_str()).unwrap();
+        let ratings_element = doc.select(&ratings_selector).next();
+        let ratings_html = match ratings_element {
+            Some(element) => element.inner_html(),
+            None => return,
+        };
+
+        let caps = match RATING_RE.captures(ratings_html.as_str()) {
+            Some(v) => v,
+            None => return,
+        };
 
         self.rating = caps.get(1).unwrap().as_str().parse::<f32>().unwrap();
         self.review_count = caps.get(2).unwrap().as_str().parse::<i8>().unwrap();
@@ -61,14 +76,25 @@ fn output(events: &Vec<Event>) {
 }
 
 fn main() {
+    let urls_path = Path::new("urls.txt");
+    let mut urls_file = match File::open(&urls_path) {
+        Err(_) => panic!("couldn't open {:?}", urls_path),
+        Ok(file) => file,
+    };
+
+    let mut urls_content = String::new();
+    let _ = urls_file.read_to_string(&mut urls_content);
+
     let mut events: Vec<Event> = vec![];
 
-    events.push(Event {
-        name: String::from(""),
-        url: String::from("https://conferences.oreilly.com/oscon/oscon-tx/public/schedule/detail/57875"),
-        rating: 0.0,
-        review_count: 0
-    });
+    for line in urls_content.lines().filter(|&s| !s.is_empty()).take(5) {
+        events.push(Event {
+            name: String::from(""),
+            url: String::from(line),
+            rating: 0.0,
+            review_count: 0
+        });
+    }
 
     for event in &mut events {
         event.sync();
