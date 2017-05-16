@@ -1,0 +1,11 @@
+[package]
+name = "oscon-2016-ratings"
+version = "0.1.0"
+authors = ["Jacob Budin <self@jacobbudin.com>"]
+
+[dependencies]
+lazy_static = "^0.2"
+regex = "^0.2"
+reqwest = "^0.6"
+scraper = "^0.4"
+prettytable-rs = "^0.6"
