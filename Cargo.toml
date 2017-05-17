@@ -1,6 +1,6 @@
 [package]
 name = "oscon-2017-ratings"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Jacob Budin <self@jacobbudin.com>"]
 
 [dependencies]
