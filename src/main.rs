@@ -2,17 +2,20 @@
 extern crate prettytable;
 extern crate regex;
 extern crate reqwest;
+extern crate scoped_threadpool;
 extern crate scraper;
 
 use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 use regex::Regex;
+use scoped_threadpool::Pool;
+use scraper::{Html, Selector};
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use scraper::{Html, Selector};
 
+/// OSCON Event
 struct Event {
     name: String,
     url: String,
@@ -21,6 +24,7 @@ struct Event {
 }
 
 impl Event {
+    /// Retrieve HTML body from OSCON event page
     fn fetch(&self) -> String {
         let mut body = String::new();
         let mut resp = reqwest::get(&self.url).unwrap();
@@ -28,6 +32,7 @@ impl Event {
         body
     }
 
+    /// Populate structure using OSCON event page
     fn sync(&mut self) {
         lazy_static! {
             static ref RATING_RE: Regex = Regex::new(r"\(([0-9.]+), ([0-9]+) ratings\)").unwrap();
@@ -61,6 +66,7 @@ impl Event {
     }
 }
 
+/// Echoes an `Event` vector as a plain-text table
 fn output(events: &Vec<Event>) {
     let mut table = Table::new();
 
@@ -75,7 +81,9 @@ fn output(events: &Vec<Event>) {
     table.printstd();
 }
 
+/// Reads, pulls, and prints OSCON 2017 event ratings
 fn main() {
+    // Open and read `urls.txt` for event URLs
     let urls_path = Path::new("urls.txt");
     let mut urls_file = match File::open(&urls_path) {
         Err(_) => panic!("couldn't open {:?}", urls_path),
@@ -87,7 +95,8 @@ fn main() {
 
     let mut events: Vec<Event> = vec![];
 
-    for line in urls_content.lines().filter(|&s| !s.is_empty()).take(5) {
+    // Generate boilerplate event structs from event URLs
+    for line in urls_content.lines().filter(|&s| !s.is_empty()) {
         events.push(Event {
             name: String::from(""),
             url: String::from(line),
@@ -96,9 +105,20 @@ fn main() {
         });
     }
 
-    for event in &mut events {
-        event.sync();
-    }
+    // Populate `Event`s over four threads
+    let mut pool = Pool::new(4);
 
+    pool.scoped(|scope| {
+        for event in &mut events {
+            scope.execute(move || {
+                event.sync();
+            });
+        }
+    });
+
+    // Sort `Event` vector from most highly-rated to least
+    events.sort_by(|a, b| b.rating.partial_cmp(&a.rating).unwrap());
+
+    // Send output to `stdout`
     output(&events);
 }
